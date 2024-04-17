@@ -80,7 +80,7 @@ function loadData() {
           }
           elements.push(element.id)
           let latlngs = [];
-          let laNumber = 0;
+          let laNumber;
           if (element.tags['ref:La'] === undefined) {
             laNumber = element.tags['ref:la'];
           } else {
