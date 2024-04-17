@@ -3,97 +3,111 @@
 </template>
 
 <script setup>
-import {onMounted, ref} from "vue";
+import {onMounted} from "vue";
 import L from 'leaflet'
 import "leaflet/dist/leaflet.css";
 import 'leaflet-textpath';
 
-const initialMap = ref(null);
-const orm = ref(null);
-const ormSpeed = ref(null);
-const laLayer = ref(null);
-let la = {};
+let initialMap = null;
+let orm = null;
+let ormSpeed = null;
+let laLayer = null;
+let elements = [];
 
 onMounted(() => {
-  initialMap.value = L.map('map', {
-    center: [52.172841433619034, 9.798002763342472],
-    zoom: 12
+  initialMap = L.map('map', {
+    center: [51.0, 8.0],
+    zoom: 7
   });
 
   //Basemap
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 18,
     attribution: '&copy; OpenStreetMap contributors',
-  }).addTo(initialMap.value);
+  }).addTo(initialMap);
 
   //OpenRailwayMap
-  orm.value = L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
+  orm = L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; OpenRailwayMap contributors'
-  }).addTo(initialMap.value);
+  }).addTo(initialMap);
 
   //Speed
-  ormSpeed.value = L.tileLayer('https://{s}.tiles.openrailwaymap.org/maxspeed/{z}/{x}/{y}.png', {
+  ormSpeed = L.tileLayer('https://{s}.tiles.openrailwaymap.org/maxspeed/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; OpenRailwayMap contributors'
   });
 
   //La
-  laLayer.value = L.layerGroup().addTo(initialMap.value);
+  laLayer = L.layerGroup().addTo(initialMap);
 
   //LayerMenu
   L.control.layers({}, {
-    "Infrastruktur": orm.value,
-    "Geschwindigkeiten": ormSpeed.value,
-    "La-Strecken": laLayer.value,
-  }).addTo(initialMap.value).expand();
+    "Infrastruktur": orm,
+    "Geschwindigkeiten": ormSpeed,
+    "La-Strecken": laLayer,
+  }).addTo(initialMap).expand();
 
   //Listeners
   loadData();
-  initialMap.value.on('moveend', loadData)
+  initialMap.on('moveend', loadData)
 });
 
-async function loadData() {
-  let bound = Object.values(initialMap.value.getBounds());
+function loadData() {
+  if (initialMap.getZoom() < 12) {
+    console.log('out of zoom');
+    return;
+  }
+
+  let bound = Object.values(initialMap.getBounds());
   let bbound = Object.values(bound[0]) + ',' + Object.values(bound[1]);
 
   const payload = "data=" + encodeURIComponent(
-      '[out:json][bbox:' + bbound + '];way["ref:la"][railway=rail];out geom;'
+      '[out:json][timeout:5];(way["railway"]["ref:La"](' + bbound + ');way["railway"]["ref:la"](' + bbound + '););out geom;'
   )
-  await fetch("https://overpass-api.de/api/interpreter", {
+  fetch("https://overpass-api.de/api/interpreter", {
     method: "POST",
     body: payload
   })
       .then(response => response.json())
       .then(function (data) {
-        la = {};
-        data.elements.forEach(element => {
-              var latlngs = [];
-              element.geometry.forEach(l => {
-                latlngs.push(Object.values(l))
-              })
-              var polyline = L.polyline(latlngs, {
-                opacity: 0,
-                color: 'grey'
-              }).setText('La ' + element.tags['ref:la'], {
-                below: true,
-                attributes: {fill: 'black', 'font-weight': 'italic', 'font-size': 20}
-              })
-
-              if (!(element.tags['ref:la'] in la)) {
-                la[element.tags['ref:la']] = [];
-              }
-              la[element.tags['ref:la']].push(polyline);
-            }
-        );
-
-        console.log(la)
-        for (var i in la) {
-          la[i].forEach(item => {
-            item.addTo(laLayer.value);
-          })
+        if (!data.elements) {
+          return;
         }
+        data.elements.forEach(element => {
+          if (elements.includes(element.id)) {
+            return;
+          }
+          elements.push(element.id)
+          let latlngs = [];
+          let laNumber = 0;
+          if (element.tags['ref:La'] === undefined) {
+            laNumber = element.tags['ref:la'];
+          } else {
+            laNumber = element.tags['ref:La']
+          }
+
+          let color = genColorFromAttribute(laNumber);
+          element.geometry.forEach(geom => {
+            latlngs.push([geom.lat, geom.lon]);
+          });
+          L.polyline(latlngs, {color: color})
+              .bindPopup('La- Strecke '+laNumber)
+              .addTo(laLayer)
+        })
       });
+}
+
+function genColorFromAttribute(attribute) {
+  let hash = 0;
+  for (let i = 0; i < attribute.length; i++) {
+    hash = attribute.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  let c = (hash & 0x00FFFFFF)
+      .toString(16)
+      .toUpperCase();
+  return '#' + "00000".substring(0, 6 - c.length) + c;
+
 }
 </script>
 <style>
