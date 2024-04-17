@@ -53,7 +53,6 @@ onMounted(() => {
   initialMap.on('moveend', loadData)
   initialMap.on('zoomend', loadData)
 
-
   //Locate
   initialMap.locate({setView: true, maxZoom: 16})
 
