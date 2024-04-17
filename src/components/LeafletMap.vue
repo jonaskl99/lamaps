@@ -30,7 +30,7 @@ onMounted(() => {
   orm = L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
     maxZoom: 18,
     attribution: '&copy; OpenRailwayMap contributors'
-  }).addTo(initialMap);
+  });
 
   //Speed
   ormSpeed = L.tileLayer('https://{s}.tiles.openrailwaymap.org/maxspeed/{z}/{x}/{y}.png', {
@@ -51,6 +51,12 @@ onMounted(() => {
   //Listeners
   loadData();
   initialMap.on('moveend', loadData)
+  initialMap.on('zoomend', loadData)
+
+
+  //Locate
+  initialMap.locate({setView: true, maxZoom: 16})
+
 });
 
 function loadData() {
@@ -92,7 +98,13 @@ function loadData() {
             latlngs.push([geom.lat, geom.lon]);
           });
           L.polyline(latlngs, {color: color})
-              .bindPopup('La- Strecke '+laNumber)
+              .bindPopup('La- Strecke ' + laNumber)
+              .setText(laNumber, {
+                below: true,
+                offset: 14,
+                center: true,
+                attributes: {fill: color, 'font-size': 15, 'font-weight': 'bold'}
+              })
               .addTo(laLayer)
         })
       });
